@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · {{ settings.app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        fontFamily: { sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'sans-serif'] },
+        colors: {
+          navy: { 950: '#0a1226', 900: '#0d1730', 800: '#13203f', 700: '#1c2d55' },
+          ink: '#14203b', mute: '#5b6785', line: '#e4e8f1', canvas: '#f4f6fb',
+          signal: '#3563f5', violet: '#7c5cfa', emerald: '#10a37f'
+        }
+      } }
+    }
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+</head>
+<body class="min-h-screen">
+{% from "_icons.html" import icon %}
+
+
+
+<!-- Sidebar -->
+<aside id="sidebar" class="fixed inset-y-0 left-0 z-40 flex w-[248px] -translate-x-full flex-col bg-navy-900 px-3 py-4 text-white transition-transform lg:translate-x-0">
+  <div class="flex items-center gap-3 px-2 pb-5 pt-1">
+    <div class="grid h-9 w-9 place-items-center rounded-[10px] bg-signal">
+      <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z" fill="#fff"/></svg>
+    </div>
+    <div class="leading-tight">
+      <div class="text-[17px] font-bold tracking-tight">{{ settings.app_name }}</div>
+      <div class="text-[11.5px] text-[#8e9bbd]">Social analytics &amp; decisions</div>
+    </div>
+  </div>
+
+  <nav class="flex flex-1 flex-col gap-1" aria-label="Main">
+    {% for key, label, path, ic in nav %}
+      <a href="{{ path }}?{{ filters.query_string }}" data-nav="{{ path }}" class="nav-link"
+         {% if key == active %}aria-current="page"{% endif %}>
+        {{ icon(ic) }}<span>{{ label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <div class="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-[12.5px] leading-relaxed text-[#b4bfdc]">
+    <div class="mb-1 flex items-center gap-2 font-semibold text-white"><span class="dot bg-emerald pulse-dot"></span>Demo mode</div>
+    Every figure is fictional sample data. No social or ad accounts are connected.
+  </div>
+</aside>
+<div id="scrim" class="fixed inset-0 z-30 hidden bg-navy-950/50 lg:hidden"></div>
+
+<div class="lg:pl-[248px]">
+  <!-- Top bar -->
+  <header class="sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+      <button id="menu-btn" class="btn btn-ghost !px-2.5 lg:hidden" aria-label="Open navigation">{{ icon('menu') }}</button>
+
+      <label class="sr-only" for="filter-days">Date range</label>
+      <select id="filter-days" data-filter="days" class="field">
+        {% for v, lbl in [(7, 'Last 7 days'), (14, 'Last 14 days'), (30, 'Last 30 days'), (90, 'All 90 days')] %}
+          <option value="{{ v }}" {% if filters.days == v %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+      <label class="sr-only" for="filter-platform">Platform</label>
+      <select id="filter-platform" data-filter="platform" class="field">
+        <option value="all">All platforms</option>
+        {% for p in platforms %}<option value="{{ p }}" {% if filters.platform == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+
+      <div class="ml-auto flex items-center gap-2 sm:gap-3">
+        <span class="hidden items-center gap-1.5 rounded-full bg-[#eef1ff] px-3 py-1.5 text-[12.5px] font-semibold text-signal md:inline-flex">
+          {% if data_seed is not none %}Randomised data · seed {{ data_seed }}{% else %}Demonstration data{% endif %}
+        </span>
+        <div class="hidden text-right text-[12px] leading-tight text-mute sm:block">
+          <div>Last updated</div>
+          <div id="last-updated" class="num font-semibold text-ink">--:--:--</div>
+        </div>
+        <button id="randomize-btn" class="btn btn-ghost !px-2.5 sm:!px-3" title="Randomise the dummy data across the whole site" aria-label="Randomise data">
+          {{ icon('dice') }}<span class="hidden text-[13.5px] xl:inline">Randomise</span>
+        </button>
+        <button id="refresh-btn" class="btn btn-ghost !px-2.5" title="Refresh metrics" aria-label="Refresh metrics">
+          <span id="refresh-icon">{{ icon('refresh') }}</span>
+        </button>
+
+        <div class="relative">
+          <button id="bell-btn" class="btn btn-ghost relative !px-2.5" aria-label="Notifications" aria-expanded="false">
+            {{ icon('bell') }}
+            <span id="bell-badge" class="absolute -right-1 -top-1 hidden h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#d6455d] px-1 text-[11px] font-bold text-white"></span>
+          </button>
+          <div id="bell-panel" class="card absolute right-0 mt-2 hidden w-[340px] max-w-[88vw] p-0 shadow-xl">
+            <div class="border-b border-line px-4 py-3 text-[14px] font-semibold">Alerts <span class="font-normal text-mute">· demo data</span></div>
+            <ul id="bell-list" class="max-h-[360px] divide-y divide-line overflow-auto text-[13px]"></ul>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 border-l border-line pl-3">
+          <div class="grid h-9 w-9 place-items-center rounded-full bg-violet text-[13px] font-bold text-white">DA</div>
+          <div class="hidden leading-tight lg:block">
+            <div class="text-[13.5px] font-semibold">Demo account</div>
+            <div class="text-[12px] text-mute">{{ settings.business_name }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="px-4 py-6 sm:px-6">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-50 hidden -translate-x-1/2 rounded-xl bg-navy-900 px-4 py-2.5 text-[13.5px] font-medium text-white shadow-xl"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', path='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

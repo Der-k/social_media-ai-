@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% from "_draft_form.html" import draft_form with context %}
+
+{% macro platform_tag(name) -%}
+<span class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><span class="dot" data-platform="{{ name }}"></span>{{ name }}</span>
+{%- endmacro %}
+
+{% macro tier_chip(tier) -%}
+{% if tier == 'strong' %}<span class="chip chip-good">Strong</span>{% elif tier == 'weak' %}<span class="chip chip-bad">Weak</span>{% endif %}
+{%- endmacro %}
+
+{% macro status_pill(status) -%}
+{% if status == 'published' %}<span class="inline-flex rounded-full bg-[#e3f6ef] px-2 py-0.5 text-[11.5px] font-semibold text-[#0b7a5d]">Published</span>
+{% elif status == 'proposed' %}<span class="inline-flex rounded-full bg-[#efeaff] px-2 py-0.5 text-[11.5px] font-semibold text-[#5b3fd6]">Proposed</span>
+{% else %}<span class="inline-flex rounded-full bg-[#eef1f7] px-2 py-0.5 text-[11.5px] font-semibold text-mute">Draft</span>{% endif %}
+{%- endmacro %}
+
+{% macro mini_list(items, empty) -%}
+{% if items %}
+<ol class="divide-y divide-line">
+  {% for r in items %}
+  <li>
+    <a href="/content/{{ r.id }}?{{ filters.query_string }}" class="flex items-start gap-3 px-5 py-3 hover:bg-[#fafbfe]">
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-x-2 text-[12.5px] text-mute">{{ platform_tag(r.platform) }}<span>{{ r.type_label }}</span><span>{{ r.date_label }}</span></div>
+        <div class="mt-0.5 line-clamp-2 text-[13.5px] font-medium leading-snug">{{ r.caption }}</div>
+      </div>
+      <div class="flex-none text-right">
+        <div class="num text-[15px] font-bold">{{ r.er|pct }}</div>
+        <div class="num text-[12px] text-mute">{{ r.reach|num }} reach</div>
+      </div>
+    </a>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}<p class="px-5 py-8 text-center text-[13.5px] text-mute">{{ empty }}</p>{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="mx-auto max-w-[1360px]">
+
+  <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-[26px] font-bold tracking-tight">Content Library</h1>
+      <p class="mt-1 text-[14px] text-mute">Sample posts published {{ lib.range.start }} to {{ lib.range.end }}, plus your drafts and proposed posts.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <label for="filter-campaign" class="text-[13px] font-medium text-mute">Campaign</label>
+      <select id="filter-campaign" data-filter="campaign" class="field max-w-[240px]">
+        <option value="all">All campaigns</option>
+        {% for c in campaigns %}<option value="{{ c.id }}" {% if filters.campaign == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+      <button id="new-draft-btn" class="btn btn-primary" type="button">New draft</button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Library summary">
+    {% for label, value, sub in [
+      ('Published posts', lib.summary.published|num, 'In the selected range'),
+      ('Engagement rate', lib.summary.er|pct, 'All published posts in range'),
+      ('Drafts', lib.summary.drafts|num, 'Not yet scheduled'),
+      ('Proposed', lib.summary.proposed|num, 'Planned, not published')] %}
+      <div class="card p-4"><div class="text-[13px] font-semibold text-mute">{{ label }}</div>
+        <div class="num mt-2 text-[26px] font-bold leading-none tracking-tight">{{ value }}</div>
+        <div class="mt-2 text-[12px] text-mute">{{ sub }}</div></div>
+    {% endfor %}
+  </section>
+
+  <!-- Best and worst -->
+  <div class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <section class="card overflow-hidden p-0">
+      <div class="flex items-center gap-2 border-b border-line px-5 py-4">
+        <span class="dot bg-emerald"></span>
+        <div><h2 class="card-title">Best performers</h2><p class="card-sub">Highest engagement rate, posts with {{ lib.min_reach|num }}+ reach.</p></div>
+      </div>
+      {{ mini_list(lib.best, 'No rated posts in this range.') }}
+    </section>
+    <section class="card overflow-hidden p-0">
+      <div class="flex items-center gap-2 border-b border-line px-5 py-4">
+        <span class="dot" style="background:#d6455d"></span>
+        <div><h2 class="card-title">Weakest performers</h2><p class="card-sub">Lowest engagement rate, same threshold.</p></div>
+      </div>
+      {{ mini_list(lib.worst, 'Not enough rated posts to show a weakest list.') }}
+    </section>
+  </div>
+
+  <!-- Filters -->
+  <form id="library-filters" method="get" action="/content" class="card mt-5 flex flex-wrap items-end gap-3 p-4">
+    <input type="hidden" name="days" value="{{ filters.days }}">
+    <input type="hidden" name="platform" value="{{ filters.platform }}">
+    <input type="hidden" name="campaign" value="{{ filters.campaign }}">
+    <div class="min-w-[220px] flex-1">
+      <label for="lib-q" class="mb-1 block text-[12.5px] font-semibold text-mute">Search</label>
+      <input id="lib-q" name="q" type="search" value="{{ lf.q }}" placeholder="Caption, topic or format" autocomplete="off"
+             class="field w-full !bg-none !pr-3 !cursor-text">
+    </div>
+    <div>
+      <label for="lib-format" class="mb-1 block text-[12.5px] font-semibold text-mute">Format</label>
+      <select id="lib-format" name="format" class="field">
+        <option value="all">All formats</option>
+        {% for key, label in formats %}<option value="{{ key }}" {% if lf.format == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="lib-topic" class="mb-1 block text-[12.5px] font-semibold text-mute">Topic</label>
+      <select id="lib-topic" name="topic" class="field">
+        <option value="all">All topics</option>
+        {% for t in topics %}<option value="{{ t }}" {% if lf.topic == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="lib-status" class="mb-1 block text-[12.5px] font-semibold text-mute">Status</label>
+      <select id="lib-status" name="status" class="field">
+        {% for v, l in [('all', 'All statuses'), ('published', 'Published'), ('draft', 'Draft'), ('proposed', 'Proposed')] %}
+          <option value="{{ v }}" {% if lf.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="lib-sort" class="mb-1 block text-[12.5px] font-semibold text-mute">Sort by</label>
+      <select id="lib-sort" name="sort" class="field">
+        {% for v, l in [('newest', 'Newest first'), ('oldest', 'Oldest first'), ('er_desc', 'Highest engagement'), ('er_asc', 'Lowest engagement'), ('reach_desc', 'Highest reach'), ('clicks_desc', 'Most link clicks')] %}
+          <option value="{{ v }}" {% if lf.sort == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+    </div>
+  </form>
+
+  <!-- Table -->
+  <section class="card mt-3 overflow-hidden p-0">
+    <div class="flex items-center justify-between border-b border-line px-5 py-3 text-[13px] text-mute">
+      <span aria-live="polite">{% if lib.total %}Showing <span class="num font-semibold text-ink">{{ lib.first }}-{{ lib.last }}</span> of <span class="num font-semibold text-ink">{{ lib.total }}</span> posts{% else %}No posts{% endif %}</span>
+      <span>Engagement rate = engagements / reach</span>
+    </div>
+    {% if lib.rows %}
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[920px] text-left text-[13.5px]">
+        <thead class="border-b border-line bg-[#fafbfe] text-[12.5px] text-mute">
+          <tr>
+            <th class="px-5 py-2.5 font-semibold">Post</th>
+            <th class="px-3 py-2.5 font-semibold">Date</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Reach</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Eng. rate</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Likes</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Comments</th>
+            <th class="px-3 py-2.5 text-right font-semibold">Shares</th>
+            <th class="px-5 py-2.5 text-right font-semibold">Clicks</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          {% for r in lib.rows %}
+          <tr class="cursor-pointer hover:bg-[#fafbfe]" data-href="/content/{{ r.id }}?{{ filters.query_string }}">
+            <td class="max-w-[460px] px-5 py-3">
+              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-mute">
+                {{ platform_tag(r.platform) }}
+                <span class="rounded-md bg-[#eef1f7] px-1.5 py-0.5 font-medium text-ink">{{ r.type_label }}</span>
+                <span>{{ r.topic }}</span>
+              </div>
+              <a href="/content/{{ r.id }}?{{ filters.query_string }}" class="mt-1 line-clamp-2 font-medium leading-snug hover:text-signal">{{ r.caption }}</a>
+              {% if r.campaign_name %}<div class="mt-1 text-[12px] text-mute">Campaign: {{ r.campaign_name }}</div>{% endif %}
+            </td>
+            <td class="px-3 py-3 align-top"><div class="num whitespace-nowrap">{{ r.date_label }}</div><div class="mt-1">{{ status_pill(r.status) }}</div></td>
+            <td class="num px-3 py-3 text-right align-top">{{ r.reach|num }}</td>
+            <td class="num px-3 py-3 text-right align-top"><div class="font-semibold">{{ r.er|pct }}</div><div class="mt-1">{{ tier_chip(r.tier) }}</div></td>
+            <td class="num px-3 py-3 text-right align-top">{{ r.likes|num }}</td>
+            <td class="num px-3 py-3 text-right align-top">{{ r.comments|num }}</td>
+            <td class="num px-3 py-3 text-right align-top">{{ r.shares|num }}</td>
+            <td class="num px-5 py-3 text-right align-top">{{ r.link_clicks|num }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-5 py-14 text-center">
+      <p class="text-[15px] font-semibold">No posts match these filters</p>
+      <p class="mx-auto mt-1 max-w-md text-[13.5px] text-mute">Try a wider date range, remove a filter, or add a draft of your own.</p>
+      <a href="{{ clear_url }}" class="btn btn-ghost mt-4">Clear filters</a>
+    </div>
+    {% endif %}
+    <div class="border-t border-line bg-[#fafbfe] px-5 py-2.5 text-[12px] text-mute">Strong and Weak compare a post's engagement rate with its platform's average (25% above or below), for posts with {{ lib.min_reach|num }}+ reach. Drafts show a dash because they have no metrics.</div>
+  </section>
+
+  {% if lib.pages > 1 %}
+  <nav class="mt-4 flex items-center justify-between" aria-label="Pagination">
+    {% if lib.page > 1 %}<a class="btn btn-ghost" href="{{ page_url(lib.page - 1) }}">Previous</a>{% else %}<span></span>{% endif %}
+    <span class="text-[13px] text-mute">Page {{ lib.page }} of {{ lib.pages }}</span>
+    {% if lib.page < lib.pages %}<a class="btn btn-ghost" href="{{ page_url(lib.page + 1) }}">Next</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+
+<dialog id="draft-dialog" class="w-[min(640px,94vw)] rounded-2xl border border-line p-0 shadow-2xl backdrop:bg-navy-950/50">
+  <div class="flex items-start justify-between border-b border-line px-6 py-4">
+    <div><h2 class="text-[18px] font-bold tracking-tight">New draft</h2><p class="card-sub">Write a post for later. It is not published anywhere.</p></div>
+    <button type="button" id="dialog-close" class="btn btn-ghost !px-2.5" aria-label="Close">&times;</button>
+  </div>
+  <div class="px-6 py-5">{{ draft_form() }}</div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/content.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% macro kind_chip(r) -%}
+{% set tones = {'good': 'bg-[#e3f6ef] text-[#0b7a5d]', 'violet': 'bg-[#efeaff] text-[#5b3fd6]', 'warn': 'bg-[#fff3d6] text-[#8a5a00]', 'blue': 'bg-[#eaf0ff] text-[#2a4fcf]'} %}
+<span class="rounded-full px-2.5 py-0.5 text-[12px] font-semibold {{ tones[r.kind_tone] }}">{{ r.kind_label }}</span>
+{%- endmacro %}
+
+{% macro meter(level) -%}
+{% set n = {'high': 3, 'medium': 2, 'low': 1}[level] %}
+<span class="inline-flex items-end gap-[3px]" aria-hidden="true">
+  {% for i in range(1, 4) %}<span class="w-[5px] rounded-sm {{ 'bg-emerald' if i <= n and level == 'high' else 'bg-signal' if i <= n and level == 'medium' else 'bg-[#e0a526]' if i <= n else 'bg-[#dfe4ef]' }}" style="height: {{ 6 + i * 4 }}px"></span>{% endfor %}
+</span>
+{%- endmacro %}
+
+{% block content %}
+<div class="mx-auto max-w-[1360px]">
+
+  <div class="mb-5">
+    <h1 class="text-[26px] font-bold tracking-tight">AI Recommendations</h1>
+    <p class="mt-1 max-w-3xl text-[14px] text-mute">What to publish next, backed by your own performance data. Python measures the patterns; the AI chooses and words the best ones. Advisory only: nothing is published and no budget changes.</p>
+  </div>
+
+  {% if not ai.configured or not ai.model %}
+  <div class="mb-4 rounded-xl border border-[#f0dcae] bg-[#fff8e6] px-4 py-3 text-[13.5px] text-[#7a560a]" role="status">
+    <strong>Groq is not configured.</strong> Set <code>GROQ_API_KEY</code> and <code>GROQ_MODEL</code> in <code>.env</code> to generate AI recommendations. You can still generate <strong>rule-based</strong> recommendations below, clearly labelled as such.
+  </div>
+  {% endif %}
+
+  <!-- Action bar -->
+  <section class="card flex flex-wrap items-center justify-between gap-4 p-5">
+    <div class="min-w-0 text-[13.5px]">
+      {% if d.batch %}
+        <div class="font-semibold">Latest analysis: {{ d.batch_label }}
+          <span class="ml-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold {{ 'bg-[#eef1ff] text-signal' if d.batch.source == 'ai' else 'bg-[#eef1f7] text-mute' }}">
+            {{ ('AI · ' ~ d.batch.model) if d.batch.source == 'ai' else 'Rule-based, no AI' }}</span></div>
+        <div class="mt-0.5 text-mute">Based on <span class="num">{{ d.batch.posts_analysed }}</span> published posts and {{ d.campaigns }} campaigns, <span class="num">{{ d.batch.candidate_count }}</span> patterns checked. Uses all 90 days of history, whatever the date filter says.</div>
+      {% else %}
+        <div class="font-semibold">No analysis yet</div>
+        <div class="mt-0.5 text-mute">Ready to analyse <span class="num">{{ d.posts_analysed }}</span> published posts and {{ d.campaigns }} campaigns.</div>
+      {% endif %}
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="rec-generate" class="btn btn-primary" type="button" {% if not d.enough %}disabled{% endif %}>Generate New Recommendations</button>
+      <button id="rec-rules" class="btn btn-ghost" type="button" {% if not d.enough %}disabled{% endif %} title="Uses the same measured evidence with standard wording. No AI call.">Rule-based only</button>
+    </div>
+  </section>
+
+  <div id="rec-notice" class="mt-3 hidden" role="status" aria-live="polite"></div>
+
+  {% if not d.enough %}
+  <div class="card mt-5 p-8 text-center"><p class="text-[16px] font-bold">Not enough history yet</p>
+    <p class="mx-auto mt-1 max-w-md text-[13.5px] text-mute">Recommendations need at least 20 published posts. Publish more or run a few tests, then come back.</p></div>
+  {% endif %}
+
+  {% if d.batch %}
+  <section class="card mt-5 p-5">
+    <div class="flex flex-wrap items-center gap-2"><h2 class="card-title">The short version</h2>
+      <span class="text-[12px] text-mute">{{ 'Written by the AI from the measured evidence' if d.batch.summary_source == 'ai' else 'Rule-based summary' }}</span></div>
+    <p class="mt-2 max-w-4xl text-[15px] leading-relaxed">{{ d.batch.summary }}</p>
+  </section>
+
+  {% if d.hidden_by_filter %}
+  <p class="mt-4 text-[13px] text-mute">Showing {{ d.recs|length }} for {{ filters.platform }}. {{ d.hidden_by_filter }} more for other platforms are hidden by the platform filter.</p>
+  {% endif %}
+
+  <div class="mt-5 space-y-5" id="rec-list">
+    {% for r in d.recs %}
+    <article class="card overflow-hidden p-0" data-rec-id="{{ r.id }}">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span class="grid h-7 w-7 flex-none place-items-center rounded-full bg-navy-900 text-[13px] font-bold text-white" title="Priority {{ r.priority }}">{{ r.priority }}</span>
+          {{ kind_chip(r) }}
+          <span class="inline-flex items-center gap-1.5 text-[13.5px] font-semibold"><span class="dot" data-platform="{{ r.platform }}"></span>{{ r.platform }}</span>
+          <span class="rounded-md bg-[#eef1f7] px-2 py-0.5 text-[12.5px] font-semibold">{{ r.type_label }}</span>
+          <span class="text-[13.5px] text-mute">{{ r.topic }}</span>
+        </div>
+        <div class="flex items-center gap-2 text-[13px]" title="{{ r.confidence_note }}">
+          {{ meter(r.confidence) }}
+          <span class="font-semibold">{{ {'high': 'Strong evidence', 'medium': 'Moderate evidence', 'low': 'Limited evidence'}[r.confidence] }}</span>
+        </div>
+      </header>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3">
+        <div class="space-y-4 p-5 lg:col-span-2">
+          <div>
+            <div class="text-[12px] font-semibold uppercase tracking-wide text-mute">Suggested content</div>
+            <p class="mt-1 rounded-xl bg-[#f6f8fe] px-4 py-3 text-[15px] leading-relaxed">{{ r.caption_brief }}</p>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div><div class="text-[12px] font-semibold uppercase tracking-wide text-mute">Call to action</div><p class="mt-1 text-[13.5px] leading-snug">{{ r.call_to_action }}</p></div>
+            <div><div class="text-[12px] font-semibold uppercase tracking-wide text-mute">Success metric</div><p class="mt-1 text-[13.5px] font-semibold leading-snug">{{ r.success_metric }}</p></div>
+            <div><div class="text-[12px] font-semibold uppercase tracking-wide text-mute">Posting window</div>
+              <p class="mt-1 text-[13.5px] leading-snug">{{ r.posting_window or 'Not enough data to suggest a window (needs 3+ posts in a time slot).' }}</p></div>
+          </div>
+          <div>
+            <div class="text-[12px] font-semibold uppercase tracking-wide text-mute">Why</div>
+            <p class="mt-1 text-[14px] leading-relaxed">{{ r.reason }}</p>
+            <p class="mt-1 text-[12px] text-mute">
+              {% if r.reason_source == 'ai' %}Written by the AI. Every number was checked against the evidence.
+              {% elif r.source == 'ai' %}Standard wording: the AI's text quoted numbers that are not in the evidence, so it was not used.
+              {% elif r.source == 'rules' %}Rule-based wording, no AI.{% else %}Sample history.{% endif %}</p>
+          </div>
+          {% if r.is_test %}
+          <p class="rounded-lg bg-[#f6f3ff] px-3 py-2 text-[13px] text-[#4a33b8]"><strong>This is a test, not a proven trend.</strong> There is not enough history to claim a pattern. Publish it, then compare the result with the success metric.</p>
+          {% endif %}
+          {% if r.in_pipeline %}<p class="rounded-lg bg-[#fff8e6] px-3 py-2 text-[13px] text-[#7a560a]"><strong>Already in your pipeline.</strong> {{ r.in_pipeline }}</p>{% endif %}
+          {% if r.kind in ('support_campaign', 'reduce') or r.campaign_id %}
+          <p class="text-[12.5px] text-mute">Advisory only. Compass does not change budgets or launch campaigns; a person decides.</p>{% endif %}
+        </div>
+
+        <aside class="border-t border-line bg-[#fafbfe] p-5 lg:border-l lg:border-t-0">
+          <div class="text-[12px] font-semibold uppercase tracking-wide text-mute">Supporting data</div>
+          <dl class="mt-2 space-y-3">
+            {% for s in r.supporting_data %}
+            <div><dt class="text-[12.5px] text-mute">{{ s.label }}</dt><dd class="num text-[13.5px] font-semibold leading-snug">{{ s.value }}</dd></div>
+            {% endfor %}
+          </dl>
+          <p class="mt-3 text-[12px] leading-snug text-mute">Evidence: {{ r.confidence_note }}. Calculated in Python from the sample history.</p>
+          <a class="mt-3 inline-block text-[13px] font-semibold text-signal hover:underline" href="/content?platform={{ r.platform }}&format={{ r.format }}&sort=er_desc&days=90">View the posts behind this</a>
+        </aside>
+      </div>
+
+      <footer class="flex flex-wrap items-center gap-3 border-t border-line px-5 py-3" data-actions>
+        {% if r.status == 'saved' and r.saved_post_id %}
+          <span class="text-[13.5px] font-medium text-[#0b7a5d]">Saved as a draft.</span>
+          <a class="text-[13.5px] font-semibold text-signal hover:underline" href="/content/{{ r.saved_post_id }}?{{ filters.query_string }}">View draft</a>
+        {% else %}
+          <button type="button" class="btn btn-primary !py-1.5" data-save>Save as draft</button>
+          <button type="button" class="btn btn-ghost !py-1.5" data-dismiss>Dismiss</button>
+          <span class="hidden text-[13px] text-[#b5334a]" data-save-error role="alert"></span>
+        {% endif %}
+      </footer>
+    </article>
+    {% endfor %}
+  </div>
+  {% elif d.enough %}
+  <section class="card mt-5 p-10 text-center">
+    <p class="text-[17px] font-bold tracking-tight">No recommendations yet</p>
+    <p class="mx-auto mt-1 max-w-lg text-[14px] text-mute">Generate them to find which formats, topics and posting windows are working, and what to publish next. The evidence below is already measured.</p>
+  </section>
+  {% endif %}
+
+  <!-- Evidence matrix -->
+  <section class="card mt-5 p-5">
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <div><h2 class="card-title">The evidence: format by platform</h2>
+        <p class="card-sub">Engagement rate against each platform's own average. Green is above, red is below. Faded cells have fewer than 3 posts.</p></div>
+      <div class="flex items-center gap-3 text-[12px] text-mute"><span class="inline-flex items-center gap-1"><span class="h-3 w-5 rounded" style="background:rgba(214,69,93,.6)"></span>Below</span><span class="inline-flex items-center gap-1"><span class="h-3 w-5 rounded" style="background:rgba(16,163,127,.6)"></span>Above</span></div>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+      <div class="grid min-w-[560px] gap-1.5" style="grid-template-columns: 130px repeat(4, minmax(0, 1fr))">
+        <div></div>
+        {% for pl in platforms %}<div class="pb-1 text-center text-[12.5px] font-semibold"><span class="dot mr-1" data-platform="{{ pl }}"></span>{{ pl }}<div class="num text-[11.5px] font-normal text-mute">{% if pl in d.base %}avg {{ '%.1f'|format(d.base[pl].er * 100) }}%{% else %}no posts{% endif %}</div></div>{% endfor %}
+        {% for row in d.matrix %}
+          <div class="flex items-center text-[13px] font-medium">{{ row.label }}</div>
+          {% for c in row.cells %}
+            {% if c.n == 0 or c.lift is none %}
+              <div class="grid h-12 place-items-center rounded-lg bg-[#f1f3f9] text-[12px] text-[#b3bbcf]" title="No posts">no posts</div>
+            {% else %}
+              {% set up = c.lift >= 1 %}
+              {% set a = ([0.14 + (c.lift - 1) * 1.1, 0.85]|min) if up else ([0.14 + (1 - c.lift) * 1.1, 0.8]|min) %}
+              <div class="num grid h-12 place-items-center rounded-lg text-center leading-tight" title="{{ row.label }} on {{ c.platform }}: {{ '%.1f'|format(c.er * 100) }}% engagement, {{ c.n }} posts, {{ '%+.0f'|format((c.lift - 1) * 100) }}% vs platform average{{ ' (thin sample)' if c.n < 3 else '' }}"
+                   style="background: {{ 'rgba(16,163,127,%.2f)'|format(a) if up else 'rgba(214,69,93,%.2f)'|format(a) }}; color: {{ '#fff' if a > 0.55 else '#14203b' }}; {{ 'opacity:.55' if c.n < 3 else '' }}">
+                <span class="text-[13px] font-bold">{{ '%.1f'|format(c.er * 100) }}%</span><span class="text-[10.5px] opacity-80">n={{ c.n }}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- What Python found -->
+  <details class="card mt-5 p-0">
+    <summary class="cursor-pointer list-none px-5 py-4"><span class="card-title">What Python found before the AI chose</span>
+      <span class="ml-2 text-[13px] text-mute">{{ d.candidates|length }} candidate patterns, measured deterministically</span></summary>
+    <ul class="divide-y divide-line border-t border-line text-[13.5px]">
+      {% for c in d.candidates %}
+      <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
+        <span class="rounded-md bg-[#eef1f7] px-2 py-0.5 text-[12px] font-semibold">{{ c.kind }}</span>
+        <span class="font-medium">{{ c.headline }}</span>
+        <span class="ml-auto text-[12.5px] text-mute">{{ {'high': 'Strong', 'medium': 'Moderate', 'low': 'Limited'}[c.confidence] }} evidence{{ ' · test' if c.is_test else '' }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="border-t border-line px-5 py-3 text-[12.5px] text-mute">The AI can only pick from this list and cannot change a candidate's platform, format or evidence.</p>
+  </details>
+
+  <!-- History -->
+  <details class="card mt-5 p-0">
+    <summary class="cursor-pointer list-none px-5 py-4"><span class="card-title">Recommendation history</span>
+      <span class="ml-2 text-[13px] text-mute">{{ d.history|length }} earlier or dismissed</span></summary>
+    {% if d.history %}
+    <ul class="divide-y divide-line border-t border-line text-[13.5px]">
+      {% for r in d.history %}
+      <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3" data-rec-id="{{ r.id }}">
+        <span class="inline-flex items-center gap-1.5 font-semibold"><span class="dot" data-platform="{{ r.platform }}"></span>{{ r.platform }}</span>
+        <span class="rounded-md bg-[#eef1f7] px-2 py-0.5 text-[12px] font-semibold">{{ r.type_label }}</span>
+        <span class="text-mute">{{ r.topic }}</span>
+        <span class="min-w-0 flex-1 truncate text-mute" title="{{ r.reason }}">{{ r.reason }}</span>
+        <span class="text-[12.5px] text-mute">{{ r.created_label }} · {{ 'Sample history' if r.source == 'sample' else 'AI' if r.source == 'ai' else 'Rule-based' }}</span>
+        {% if r.status == 'saved' %}<span class="chip chip-good">Saved</span>{% if r.saved_post_id %}<a class="text-signal hover:underline" href="/content/{{ r.saved_post_id }}?{{ filters.query_string }}">View draft</a>{% endif %}
+        {% elif r.status == 'dismissed' %}<span class="chip chip-flat">Dismissed</span><button type="button" class="font-semibold text-signal hover:underline" data-restore>Restore</button>
+        {% else %}<span class="chip chip-flat">Not acted on</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="border-t border-line px-5 py-6 text-center text-[13.5px] text-mute">Nothing here yet.</p>{% endif %}
+  </details>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/recommendations.js') }}"></script>
+{% endblock %}

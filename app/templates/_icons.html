@@ -1,0 +1,17 @@
+{% macro icon(name, cls='h-[18px] w-[18px]') -%}
+<svg class="{{ cls }} flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  {%- if name == 'grid' %}<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>
+  {%- elif name == 'bars' %}<path d="M5 20V11M12 20V4M19 20v-6"/>
+  {%- elif name == 'target' %}<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>
+  {%- elif name == 'library' %}<rect x="3.5" y="4" width="17" height="6" rx="1.5"/><rect x="3.5" y="14" width="17" height="6" rx="1.5"/>
+  {%- elif name == 'spark' %}<path d="M12 3l1.9 5.4L19.5 10l-5.6 1.7L12 17.5l-1.9-5.8L4.5 10l5.6-1.6z"/><path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>
+  {%- elif name == 'calendar' %}<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+  {%- elif name == 'chat' %}<path d="M4 5.5h16v10.5H10l-4.5 3.8V16H4z"/>
+  {%- elif name == 'sliders' %}<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>
+  {%- elif name == 'bell' %}<path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 21h4"/>
+  {%- elif name == 'refresh' %}<path d="M20 11a8 8 0 0 0-14.5-3.5L4 9.5M4 4v5.5h5.5M4 13a8 8 0 0 0 14.5 3.5L20 14.5M20 20v-5.5h-5.5"/>
+  {%- elif name == 'dice' %}<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><circle cx="8.5" cy="8.5" r="1.1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.1" fill="currentColor"/>
+  {%- elif name == 'menu' %}<path d="M4 7h16M4 12h16M4 17h16"/>
+  {%- endif %}
+</svg>
+{%- endmacro %}

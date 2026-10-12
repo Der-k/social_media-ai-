@@ -1,0 +1,75 @@
+{# Draft form used by the "New draft" dialog and the draft edit card. Render with context. #}
+{% macro draft_form(post=None) -%}
+{% set mode = 'edit' if post else 'create' %}
+<form id="draft-form" data-mode="{{ mode }}" {% if post %}data-post-id="{{ post.id }}"{% endif %} novalidate class="space-y-4">
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div>
+      <label for="df-platform" class="mb-1 block text-[13px] font-semibold">Platform</label>
+      <select id="df-platform" name="platform" class="field w-full">
+        {% for p in platforms %}<option value="{{ p }}" {% if post and post.platform == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <p data-error-for="platform" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+    </div>
+    <div>
+      <label for="df-format" class="mb-1 block text-[13px] font-semibold">Format</label>
+      <select id="df-format" name="content_type" class="field w-full">
+        {% for key, label in formats %}<option value="{{ key }}" {% if post and post.content_type == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <p data-error-for="content_type" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+    </div>
+  </div>
+
+  <div>
+    <label for="df-topic" class="mb-1 block text-[13px] font-semibold">Topic</label>
+    <input id="df-topic" name="topic" list="topic-list" maxlength="60" autocomplete="off"
+           value="{{ post.topic if post else '' }}" placeholder="For example: Focus time"
+           class="field w-full !bg-none !pr-3 !cursor-text">
+    <datalist id="topic-list">{% for t in topics %}<option value="{{ t }}">{% endfor %}</datalist>
+    <p data-error-for="topic" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+  </div>
+
+  <div>
+    <div class="mb-1 flex items-baseline justify-between">
+      <label for="df-caption" class="text-[13px] font-semibold">Caption or content brief</label>
+      <span id="caption-count" class="num text-[12px] text-mute">0 / 3000</span>
+    </div>
+    <textarea id="df-caption" name="caption" rows="5" maxlength="3000"
+              class="field w-full !bg-none !pr-3 !cursor-text leading-relaxed">{{ post.caption if post else '' }}</textarea>
+    <p data-error-for="caption" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+  </div>
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div>
+      <label for="df-status" class="mb-1 block text-[13px] font-semibold">Status</label>
+      <select id="df-status" name="status" class="field w-full">
+        <option value="draft" {% if not post or post.status == 'draft' %}selected{% endif %}>Draft (no date yet)</option>
+        <option value="proposed" {% if post and post.status == 'proposed' %}selected{% endif %}>Proposed (planned date)</option>
+      </select>
+      <p data-error-for="status" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+    </div>
+    <div>
+      <label for="df-when" class="mb-1 block text-[13px] font-semibold">Planned date and time <span class="font-normal text-mute">(optional for drafts)</span></label>
+      <input id="df-when" name="scheduled_for" type="datetime-local" min="{{ min_date }}T00:00"
+             value="{{ d.scheduled_input if d is defined else '' }}" class="field w-full !bg-none !pr-3 !cursor-text">
+      <p data-error-for="scheduled_for" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+    </div>
+  </div>
+
+  <div>
+    <label for="df-campaign" class="mb-1 block text-[13px] font-semibold">Campaign <span class="font-normal text-mute">(optional)</span></label>
+    <select id="df-campaign" name="campaign_id" class="field w-full">
+      <option value="">No campaign</option>
+      {% for c in campaigns %}<option value="{{ c.id }}" {% if post and post.campaign_id == c.id %}selected{% endif %}>{{ c.name }} ({{ c.platform }})</option>{% endfor %}
+    </select>
+    <p data-error-for="campaign_id" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+  </div>
+
+  <p id="form-error" class="hidden rounded-lg bg-[#fdebee] px-3 py-2 text-[13px] text-[#b5334a]" role="alert"></p>
+  <p class="text-[12.5px] leading-snug text-mute">Saved locally in this demo only. Nothing is published to Facebook, Instagram, LinkedIn or TikTok.</p>
+
+  <div class="flex flex-wrap items-center gap-3 pt-1">
+    <button type="submit" class="btn btn-primary" id="df-submit">{{ 'Save changes' if post else 'Save draft' }}</button>
+    {% if mode == 'create' %}<button type="button" class="btn btn-ghost" id="df-cancel">Cancel</button>{% endif %}
+  </div>
+</form>
+{%- endmacro %}

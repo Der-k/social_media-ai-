@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto max-w-[1360px]">
+
+  <div class="mb-4">
+    <h1 class="text-[26px] font-bold tracking-tight">AI Assistant</h1>
+    <p class="mt-1 text-[14px] text-mute">Ask questions about the sample data, or draft a post backed by its numbers. Advisory only: nothing is published and no budget changes.</p>
+  </div>
+
+  {% if not ai.configured or not ai.model %}
+  <div class="mb-4 rounded-xl border border-[#f0dcae] bg-[#fff8e6] px-4 py-3 text-[13.5px] text-[#7a560a]" role="status">
+    <strong>Groq is not configured.</strong> Add <code>GROQ_API_KEY</code> and <code>GROQ_MODEL</code> to the <code>.env</code> file and restart the server. Every other page keeps working.
+  </div>
+  {% endif %}
+
+  <div class="mb-4 inline-flex rounded-xl border border-line bg-white p-1" role="tablist" aria-label="Assistant tools">
+    <button id="tab-ask" role="tab" aria-selected="true" aria-controls="panel-ask" class="rounded-lg px-4 py-2 text-[14px] font-semibold">Ask about your data</button>
+    <button id="tab-draft" role="tab" aria-selected="false" aria-controls="panel-draft" class="rounded-lg px-4 py-2 text-[14px] font-semibold">Draft a post</button>
+  </div>
+
+  <!-- ASK -->
+  <div id="panel-ask" role="tabpanel" class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+    <section class="card flex h-[calc(100vh-300px)] min-h-[480px] flex-col p-0 lg:col-span-2">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="card-title">Ask about your data</h2>
+          <span id="ctx-chip" class="rounded-full bg-[#eef1ff] px-2.5 py-0.5 text-[12px] font-semibold text-signal"></span>
+        </div>
+        <button id="clear-chat" class="btn btn-ghost !px-3 !py-1.5 text-[13px]" type="button">Clear conversation</button>
+      </div>
+
+      <div id="chat-log" class="flex-1 space-y-4 overflow-y-auto px-5 py-4" aria-live="polite">
+        <div id="chat-empty" class="mx-auto flex h-full max-w-[520px] flex-col justify-center text-center">
+          <p class="text-[17px] font-bold tracking-tight">What do you want to know?</p>
+          <p class="mt-1 text-[13.5px] text-mute">Answers use only the summarized sample data and its Python-calculated numbers. Pick a question or write your own.</p>
+          <div class="mt-4 flex flex-col gap-2">
+            {% for q in suggestions %}
+              <button type="button" class="suggestion rounded-xl border border-line bg-white px-4 py-2.5 text-left text-[13.5px] font-medium hover:border-[#b8c6f5] hover:bg-[#f7f9ff]">{{ q }}</button>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <form id="chat-form" class="flex items-end gap-2 border-t border-line p-3">
+        <label for="chat-input" class="sr-only">Your question</label>
+        <textarea id="chat-input" rows="1" maxlength="500" placeholder="Ask about formats, campaigns, timing or recent changes"
+                  class="field max-h-32 min-h-[42px] flex-1 resize-none !bg-none !pr-3 !cursor-text leading-snug"></textarea>
+        <button id="chat-send" type="submit" class="btn btn-primary">Ask</button>
+      </form>
+    </section>
+
+    <aside class="space-y-5">
+      <section class="card p-5">
+        <h2 class="card-title">What the assistant can see</h2>
+        <p class="card-sub mt-1">Only sections relevant to your question are sent, matched by keyword.</p>
+        <ul class="mt-3 space-y-1.5 text-[13.5px]">
+          {% for t in ['Headline KPIs (always)', 'Platform comparison', 'Formats by platform', 'Topics', 'Posting times', 'Ad campaigns', 'Recent changes', 'Top and weakest posts', 'Drafts and plans'] %}
+            <li class="flex items-center gap-2"><span class="dot bg-signal/60"></span>{{ t }}</li>
+          {% endfor %}
+        </ul>
+        <p class="mt-3 text-[12.5px] leading-relaxed text-mute">Date range and platform follow the top bar.</p>
+      </section>
+      <section class="card p-5 text-[13px] leading-relaxed text-mute">
+        <h2 class="card-title text-ink">How to read answers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-4">
+          <li>Numbers are calculated in Python. The model only explains them.</li>
+          <li>"Hypothesis" marks a possible reason, not a finding.</li>
+          <li>It cannot publish posts or change budgets.</li>
+          <li>Repeat questions are cached for 15 minutes to save free-tier quota.</li>
+        </ul>
+        <p class="mt-3">Model: <span class="font-semibold text-ink">{{ ai.model or 'not set' }}</span></p>
+      </section>
+    </aside>
+  </div>
+
+  <!-- DRAFT -->
+  <div id="panel-draft" role="tabpanel" class="hidden grid-cols-1 gap-5 lg:grid-cols-5">
+    <section class="card p-5 lg:col-span-2">
+      <h2 class="card-title">Draft a post</h2>
+      <p class="card-sub mt-1">The draft follows what your own history says works. You can edit it before saving.</p>
+      <form id="gen-form" class="mt-4 space-y-4" novalidate>
+        <div>
+          <label for="g-topic" class="mb-1 block text-[13px] font-semibold">Topic</label>
+          <input id="g-topic" name="topic" list="g-topics" maxlength="80" autocomplete="off" placeholder="Choose or type a topic"
+                 class="field w-full !bg-none !pr-3 !cursor-text">
+          <datalist id="g-topics">{% for t in topics %}<option value="{{ t }}">{% endfor %}</datalist>
+          <p data-error-for="topic" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="g-platform" class="mb-1 block text-[13px] font-semibold">Platform</label>
+            <select id="g-platform" name="platform" class="field w-full">{% for p in platforms %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select>
+          </div>
+          <div>
+            <label for="g-format" class="mb-1 block text-[13px] font-semibold">Format</label>
+            <select id="g-format" name="content_type" class="field w-full">{% for k, l in formats %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+          </div>
+        </div>
+        <div>
+          <label for="g-audience" class="mb-1 block text-[13px] font-semibold">Audience</label>
+          <input id="g-audience" name="audience" maxlength="120" value="Small team leaders and operations managers" class="field w-full !bg-none !pr-3 !cursor-text">
+          <p data-error-for="audience" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="g-objective" class="mb-1 block text-[13px] font-semibold">Objective</label>
+            <select id="g-objective" name="objective" class="field w-full">{% for o in objectives %}<option {% if o == 'Drive engagement' %}selected{% endif %}>{{ o }}</option>{% endfor %}</select>
+          </div>
+          <div>
+            <label for="g-tone" class="mb-1 block text-[13px] font-semibold">Tone</label>
+            <select id="g-tone" name="tone" class="field w-full">{% for t in tones %}<option>{{ t }}</option>{% endfor %}</select>
+          </div>
+        </div>
+        <p id="gen-error" class="hidden rounded-lg bg-[#fdebee] px-3 py-2 text-[13px] text-[#b5334a]" role="alert"></p>
+        <button id="gen-btn" type="submit" class="btn btn-primary">Generate draft</button>
+      </form>
+    </section>
+
+    <section class="space-y-5 lg:col-span-3">
+      <div id="gen-empty" class="card flex min-h-[320px] items-center justify-center p-8 text-center">
+        <div class="max-w-sm"><p class="text-[16px] font-bold tracking-tight">Your draft appears here</p>
+          <p class="mt-1 text-[13.5px] text-mute">Pick a topic, platform and format. You will see the evidence behind the draft next to it.</p></div>
+      </div>
+      <div id="gen-loading" class="card hidden items-center gap-3 p-8"><span class="typing"><span></span><span></span><span></span></span><span class="text-[14px] text-mute">Writing a draft from your analytics...</span></div>
+
+      <div id="gen-result" class="hidden space-y-5">
+        <section class="card p-5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="card-title">Proposed draft</h2>
+            <div class="flex items-center gap-2 text-[12.5px]"><span id="gen-strength" class="chip"></span><span id="gen-cached" class="hidden text-mute">Cached result</span></div>
+          </div>
+          <p id="gen-test" class="mt-3 hidden rounded-lg bg-[#fff8e6] px-3 py-2 text-[13px] text-[#7a560a]"></p>
+          <label for="gen-text" class="mb-1 mt-4 block text-[13px] font-semibold">Post text <span class="font-normal text-mute">(edit freely)</span></label>
+          <textarea id="gen-text" rows="11" maxlength="3000" class="field w-full !bg-none !pr-3 !cursor-text leading-relaxed"></textarea>
+          <div class="mt-1 flex justify-between text-[12px] text-mute"><span id="gen-meta"></span><span id="gen-count" class="num">0 / 3000</span></div>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 sm:items-end">
+            <div>
+              <label for="gen-when" class="mb-1 block text-[13px] font-semibold">Planned date and time <span class="font-normal text-mute">(optional)</span></label>
+              <input id="gen-when" type="datetime-local" min="{{ min_date }}T00:00" class="field w-full !bg-none !pr-3 !cursor-text">
+              <p data-error-for="scheduled_for" class="mt-1 hidden text-[12.5px] text-[#b5334a]"></p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="gen-save" type="button" class="btn btn-primary">Save as draft</button>
+              <button id="gen-regen" type="button" class="btn btn-ghost">Regenerate</button>
+            </div>
+          </div>
+          <p id="gen-saved" class="mt-3 hidden text-[13.5px] font-medium text-[#0b7a5d]"></p>
+          <p id="gen-save-error" class="mt-3 hidden rounded-lg bg-[#fdebee] px-3 py-2 text-[13px] text-[#b5334a]" role="alert"></p>
+          <p class="mt-3 text-[12.5px] text-mute">Saved to the Content Library in this demo only. Nothing is posted to any platform.</p>
+        </section>
+
+        <section class="card p-5">
+          <h2 class="card-title">How this fits your analytics</h2>
+          <p id="gen-align" class="mt-2 text-[14px] leading-relaxed"></p>
+          <p class="mt-1 text-[12px] text-mute">Written by the AI from the evidence below.</p>
+        </section>
+
+        <section class="card overflow-hidden p-0">
+          <div class="border-b border-line px-5 py-3"><h2 class="card-title">Evidence</h2><p class="card-sub">Calculated in Python from the sample history, not by the AI.</p></div>
+          <ul id="gen-evidence" class="divide-y divide-line text-[13.5px]"></ul>
+        </section>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="assistant-config" class="hidden"
+     data-model="{{ ai.model or '' }}" data-configured="{{ 'true' if ai.configured and ai.model else 'false' }}"
+     data-campaigns='{{ campaign_names|tojson|forceescape }}'></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/assistant.js') }}"></script>
+{% endblock %}

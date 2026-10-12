@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% from "_draft_form.html" import draft_form with context %}
+
+{% macro delta(v) -%}
+{% if v is not none %}<span class="chip {{ 'chip-good' if v > 0.005 else 'chip-bad' if v < -0.005 else 'chip-flat' }} num">{{ '+' if v > 0 else '' }}{{ (v * 100)|round(0)|int }}%</span>{% endif %}
+{%- endmacro %}
+{% macro val(v, kind) -%}{% if kind == 'pct' %}{{ v|pct }}{% else %}{{ v|num }}{% endif %}{%- endmacro %}
+
+{% block content %}
+{% set p = d.post %}
+<div class="mx-auto max-w-[1180px]">
+  <a href="/content?{{ filters.query_string }}" data-nav="/content" class="text-[13.5px] font-semibold text-signal hover:underline">&larr; Content Library</a>
+
+  <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <span class="inline-flex items-center gap-2 text-[15px] font-bold"><span class="dot" data-platform="{{ p.platform }}"></span>{{ p.platform }}</span>
+    <span class="rounded-md bg-[#eef1f7] px-2 py-0.5 text-[12.5px] font-semibold">{{ p.type_label }}</span>
+    <span class="text-[13.5px] text-mute">{{ p.topic }}</span>
+    {% if p.status == 'published' %}<span class="rounded-full bg-[#e3f6ef] px-2.5 py-0.5 text-[12px] font-semibold text-[#0b7a5d]">Published</span>
+    {% elif p.status == 'proposed' %}<span class="rounded-full bg-[#efeaff] px-2.5 py-0.5 text-[12px] font-semibold text-[#5b3fd6]">Proposed</span>
+    {% else %}<span class="rounded-full bg-[#eef1f7] px-2.5 py-0.5 text-[12px] font-semibold text-mute">Draft</span>{% endif %}
+    {% if p.tier == 'strong' %}<span class="chip chip-good">Strong for {{ p.platform }}</span>{% elif p.tier == 'weak' %}<span class="chip chip-bad">Weak for {{ p.platform }}</span>{% endif %}
+  </div>
+
+  <div class="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-3">
+    <div class="space-y-5 lg:col-span-2">
+
+      <section class="card p-6">
+        <h1 class="sr-only">Post {{ p.id }}</h1>
+        <p class="whitespace-pre-line text-[17px] leading-relaxed">{{ p.caption }}</p>
+        <div class="mt-4 text-[12.5px] text-mute">{{ p.date_label }}{% if d.timing %} &middot; {{ d.timing.weekday }}{% if d.timing.daypart %}, {{ d.timing.daypart }}{% endif %}{% endif %} &middot; Sample record {{ p.id }}{% if p.source != 'sample' %} &middot; Added by {{ 'you' if p.source == 'manual' else 'AI' if p.source == 'ai' else 'a rule-based recommendation' }}{% endif %}</div>
+      </section>
+
+      {% if d.is_published %}
+      <section class="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Post metrics">
+        {% for label, value in [('Reach', p.reach|num), ('Impressions', p.impressions|num), ('Engagement rate', p.er|pct),
+                                ('Engagements', d.engagements|num), ('Likes', p.likes|num), ('Comments', p.comments|num),
+                                ('Shares', p.shares|num), ('Saves', p.saves|num), ('Link clicks', p.link_clicks|num)] %}
+        <div class="card p-4"><div class="text-[13px] font-semibold text-mute">{{ label }}</div>
+          <div class="num mt-1.5 text-[24px] font-bold leading-none tracking-tight">{{ value }}</div></div>
+        {% endfor %}
+      </section>
+      {% else %}
+      <section class="rounded-xl border border-[#e0d8ff] bg-[#f6f3ff] px-5 py-4 text-[13.5px] leading-relaxed text-[#4a33b8]">
+        <strong>{{ 'Proposed' if p.status == 'proposed' else 'Draft' }}: not published.</strong>
+        This post has no metrics yet. The table below shows what similar published posts achieved, as a reference only, not a forecast.
+      </section>
+      {% endif %}
+
+      <section class="card overflow-hidden p-0">
+        <div class="border-b border-line px-5 py-4">
+          <h2 class="card-title">{{ 'How this post compares' if d.is_published else 'What similar published posts achieved' }}</h2>
+          <p class="card-sub">Per-post averages from published sample posts{% if d.is_published %}, excluding this one{% endif %}. Engagement rate is total engagements / total reach.</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[560px] text-left text-[13.5px]">
+            <thead class="bg-[#fafbfe] text-[12.5px] text-mute"><tr>
+              <th class="px-5 py-2.5 font-semibold">Metric</th>
+              {% if d.is_published %}<th class="px-3 py-2.5 text-right font-semibold">This post</th>{% endif %}
+              <th class="px-3 py-2.5 text-right font-semibold">{{ p.platform }} average <span class="font-normal">(n={{ d.b_platform.n }})</span></th>
+              <th class="px-5 py-2.5 text-right font-semibold">{{ p.type_label }} on {{ p.platform }} <span class="font-normal">(n={{ d.b_format.n }})</span></th>
+            </tr></thead>
+            <tbody class="divide-y divide-line">
+              {% for r in d.bench_rows %}
+              <tr>
+                <td class="px-5 py-3 font-medium">{{ r.label }}</td>
+                {% if d.is_published %}<td class="num px-3 py-3 text-right font-semibold">{{ val(r.value, r.kind) }}</td>{% endif %}
+                <td class="num px-3 py-3 text-right">{% if d.b_platform.thin %}<span class="text-mute">Too few posts</span>{% else %}{{ val(r.platform, r.kind) }} {{ delta(r.d_platform) }}{% endif %}</td>
+                <td class="num px-5 py-3 text-right">{% if d.b_format.thin %}<span class="text-mute">Too few posts</span>{% else %}{{ val(r.format, r.kind) }} {{ delta(r.d_format) }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if d.b_format.thin %}<p class="border-t border-line px-5 py-3 text-[12.5px] text-mute">Fewer than 3 comparable posts, so no format benchmark is shown. Treat any single result as an anecdote, not a trend.</p>{% endif %}
+      </section>
+
+      {% if d.similar %}
+      <section class="card overflow-hidden p-0">
+        <div class="border-b border-line px-5 py-4"><h2 class="card-title">Top similar posts</h2><p class="card-sub">Best {{ p.type_label|lower }} posts on {{ p.platform }} by engagement rate.</p></div>
+        <ol class="divide-y divide-line">
+          {% for r in d.similar %}
+          <li><a href="/content/{{ r.id }}?{{ filters.query_string }}" class="flex items-start gap-3 px-5 py-3 hover:bg-[#fafbfe]">
+            <div class="min-w-0 flex-1"><div class="text-[12.5px] text-mute">{{ r.topic }} &middot; {{ r.date_label }}</div>
+              <div class="line-clamp-2 text-[13.5px] font-medium leading-snug">{{ r.caption }}</div></div>
+            <div class="num flex-none text-right"><div class="text-[15px] font-bold">{{ r.er|pct }}</div><div class="text-[12px] text-mute">{{ r.reach|num }} reach</div></div>
+          </a></li>
+          {% endfor %}
+        </ol>
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="space-y-5">
+      <section class="card p-5">
+        <h2 class="card-title">Details</h2>
+        <dl class="mt-3 space-y-3 text-[13.5px]">
+          <div class="flex justify-between gap-3"><dt class="text-mute">Platform</dt><dd class="font-semibold">{{ p.platform }}</dd></div>
+          <div class="flex justify-between gap-3"><dt class="text-mute">Format</dt><dd class="font-semibold">{{ p.type_label }}</dd></div>
+          <div class="flex justify-between gap-3"><dt class="text-mute">Topic</dt><dd class="text-right font-semibold">{{ p.topic }}</dd></div>
+          <div class="flex justify-between gap-3"><dt class="text-mute">{{ 'Published' if d.is_published else 'Planned for' }}</dt><dd class="num text-right font-semibold">{{ p.date_label }}</dd></div>
+          {% if d.timing %}<div class="flex justify-between gap-3"><dt class="text-mute">Time of day</dt><dd class="text-right font-semibold">{{ d.timing.daypart or d.timing.time }}</dd></div>{% endif %}
+          <div class="flex justify-between gap-3"><dt class="text-mute">Campaign</dt>
+            <dd class="text-right font-semibold">{% if d.campaign %}<a class="text-signal hover:underline" href="/?campaign={{ d.campaign.id }}&days={{ filters.days }}">{{ d.campaign.name }}</a>{% else %}<span class="font-normal text-mute">None</span>{% endif %}</dd></div>
+        </dl>
+        {% if d.campaign %}<p class="mt-3 text-[12.5px] text-mute">{{ d.campaign.objective }} campaign on {{ d.campaign.platform }}, {{ d.campaign.status }}.</p>{% endif %}
+      </section>
+
+      {% if d.editable %}
+      <section class="card p-5">
+        <h2 class="card-title">Edit {{ 'proposed post' if p.status == 'proposed' else 'draft' }}</h2>
+        <div class="mt-4">{{ draft_form(post) }}</div>
+        <div class="mt-5 border-t border-line pt-4">
+          <button id="delete-btn" class="btn btn-danger" type="button" data-post-id="{{ p.id }}">Delete this {{ 'post' if p.status == 'proposed' else 'draft' }}</button>
+        </div>
+      </section>
+      {% else %}
+      <section class="card p-5 text-[13px] leading-relaxed text-mute">Published sample posts are read-only. Their metrics feed every chart and recommendation.</section>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/content.js') }}"></script>
+{% endblock %}

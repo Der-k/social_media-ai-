@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto max-w-[900px]">
+  <h1 class="text-[26px] font-bold tracking-tight">Settings</h1>
+  <p class="mt-1 text-[14px] text-mute">Demo data, AI configuration and presentation tools.</p>
+
+  <section class="card mt-6 p-6">
+    <h2 class="card-title">Demo data</h2>
+    <p class="card-sub mt-1">Fictional records for {{ settings.business_name }}, generated locally. Data runs through {{ as_of.strftime('%b %d, %Y').replace(' 0', ' ') }}.</p>
+    <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-5">
+      {% for label, key in [('Posts and drafts', 'posts'), ('Drafts', 'drafts'), ('Campaigns', 'campaigns'), ('Daily ad rows', 'campaign_daily'), ('Recommendations', 'recommendations')] %}
+        <div><dt class="text-[12.5px] text-mute">{{ label }}</dt><dd class="num mt-0.5 text-[22px] font-bold">{{ counts[key] }}</dd></div>
+      {% endfor %}
+    </dl>
+    <div class="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-5">
+      <button id="reset-btn" class="btn btn-danger">Reset demo data</button>
+      <span class="text-[13px] text-mute">Removes drafts and recommendations you added and restores the original sample data. Use it before a presentation.</span>
+    </div>
+  </section>
+
+  <section class="card mt-5 p-6">
+    <h2 class="card-title">Experiment with the data</h2>
+    <p class="card-sub mt-1">Replaces every sample post, campaign and metric with new random values, so you can see how charts, insights and recommendations react. Your own drafts are kept. The shortcut is the dice button in the top bar.</p>
+    <div class="mt-4 flex flex-wrap items-end gap-3">
+      <div><label for="seed-input" class="mb-1 block text-[13px] font-semibold">Seed <span class="font-normal text-mute">(optional, same seed gives the same data)</span></label>
+        <input id="seed-input" type="number" min="0" max="999999" placeholder="Random" class="field w-[170px] !bg-none !pr-3 !cursor-text"></div>
+      <button id="randomize-here" class="btn btn-primary" type="button">Randomise data</button>
+      <span class="text-[13px] text-mute">Current data: {{ ('randomised, seed ' ~ meta.seed) if meta.seed is not none else 'original sample data' }}.</span>
+    </div>
+  </section>
+
+  <section class="card mt-5 p-6">
+    <h2 class="card-title">AI provider (Groq)</h2>
+    <p class="card-sub mt-1">Configured in the <code class="rounded bg-canvas px-1.5 py-0.5 text-[12.5px]">.env</code> file on the server. The key is never sent to the browser.</p>
+    <dl class="mt-4 grid gap-3 text-[14px] sm:grid-cols-2">
+      <div class="flex items-center justify-between rounded-lg border border-line px-4 py-3">
+        <dt class="text-mute">API key</dt>
+        <dd class="font-semibold {{ 'text-emerald' if settings.groq_configured else 'text-[#a8730d]' }}">{{ 'Configured' if settings.groq_configured else 'Not set' }}</dd>
+      </div>
+      <div class="flex items-center justify-between rounded-lg border border-line px-4 py-3">
+        <dt class="text-mute">Model</dt>
+        <dd class="font-semibold">{{ settings.groq_model or 'Not set' }}</dd>
+      </div>
+    </dl>
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+      <button id="ai-test-btn" class="btn btn-ghost" type="button">Test Groq connection</button>
+      <span id="ai-test-result" class="text-[13.5px]" role="status"></span>
+    </div>
+    <p class="mt-3 text-[13px] leading-relaxed text-mute">The test lists Groq's models and checks that yours is available. It does not generate text. The dashboard works without Groq, and AI features show a clear message when the API is unavailable.</p>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById("ai-test-btn").addEventListener("click", async () => {
+    const out = document.getElementById("ai-test-result"), btn = document.getElementById("ai-test-btn");
+    btn.disabled = true; out.className = "text-[13.5px] text-mute"; out.textContent = "Checking...";
+    try {
+      const r = await (await fetch("/api/ai/status")).json();
+      out.textContent = r.message;
+      out.className = "text-[13.5px] font-medium " + (r.ok ? "text-emerald" : "text-[#b5334a]");
+    } catch (e) { out.textContent = "Could not reach the Compass server."; out.className = "text-[13.5px] text-[#b5334a]"; }
+    finally { btn.disabled = false; }
+  });
+  document.getElementById("randomize-here").addEventListener("click", () => App.randomize(document.getElementById("seed-input").value));
+  document.getElementById("reset-btn").addEventListener("click", async () => {
+    if (!confirm("Reset all demo data to its original state? Drafts and recommendations you added will be removed.")) return;
+    try {
+      const res = await fetch("/api/reset-demo", { method: "POST" });
+      if (!res.ok) throw new Error();
+      App.toast("Demo data reset");
+      setTimeout(() => location.reload(), 700);
+    } catch (e) { App.toast("Reset failed. Check the server console."); }
+  });
+</script>
+{% endblock %}

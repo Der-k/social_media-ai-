@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto max-w-[1360px]">
+
+  <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="text-[26px] font-bold tracking-tight">Overview</h1>
+      <p id="period-label" class="mt-1 text-[14px] text-mute">&nbsp;</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <label for="filter-campaign" class="text-[13px] font-medium text-mute">Campaign</label>
+      <select id="filter-campaign" data-filter="campaign" class="field max-w-[260px]">
+        <option value="all">All campaigns</option>
+        {% for c in payload.options.campaigns %}
+          <option value="{{ c.id }}" {% if filters.campaign == c.id %}selected{% endif %}>{{ c.name }} ({{ c.platform }})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="mb-5 flex items-start gap-3 rounded-xl border border-[#d9e1ff] bg-[#f3f6ff] px-4 py-3 text-[13.5px] text-[#2f4aa8]">
+    <span class="mt-0.5 font-bold">Sample data.</span>
+    <span>Brightloom is a fictional company. These figures are generated demonstration data and are not connected to Meta, Instagram, LinkedIn or TikTok.</span>
+  </div>
+
+  <div id="page-body">
+    <!-- KPI cards -->
+    <section id="kpi-grid" class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Key metrics"></section>
+
+    <!-- Signals: the bridge from reporting to deciding -->
+    <section class="card mt-5 overflow-hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <div>
+          <h2 class="card-title">What the data says so far</h2>
+          <p class="card-sub">Rule-based signals from this range. AI Recommendations turns them into what to publish next.</p>
+        </div>
+        <a href="/recommendations?{{ filters.query_string }}" data-nav="/recommendations" class="btn btn-primary">See what to publish next</a>
+      </div>
+      <div id="signals" class="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 xl:grid-cols-4"></div>
+    </section>
+
+    <!-- Charts -->
+    <div class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <section class="card p-5 lg:col-span-2">
+        <h2 class="card-title">Engagement over time</h2>
+        <p class="card-sub mb-3">Organic engagements (likes, comments, shares, saves) and engagement rate by day.</p>
+        <div class="relative h-[270px]"><canvas id="chart-engagement"></canvas></div>
+      </section>
+      <section class="card p-5">
+        <h2 class="card-title">Performance by platform</h2>
+        <p class="card-sub mb-3">Reach (bars) and engagement rate (markers). Ignores the platform filter.</p>
+        <div class="relative h-[270px]"><canvas id="chart-platform"></canvas></div>
+      </section>
+
+      <section class="card p-5">
+        <h2 class="card-title">Reach and impressions</h2>
+        <p class="card-sub mb-3">Organic plus paid, by day.</p>
+        <div class="relative h-[270px]"><canvas id="chart-reach"></canvas></div>
+      </section>
+      <section class="card p-5 lg:col-span-2">
+        <h2 class="card-title">Advertising spend vs conversions</h2>
+        <p class="card-sub mb-3">Daily spend (bars) against conversions (line). Days without tracked conversions show a gap, not zero.</p>
+        <p id="spend-note" class="mb-2 hidden text-[12.5px] font-medium text-[#a8730d]">Conversions are not tracked for the campaigns in this selection, so only spend is shown.</p>
+        <div class="relative h-[270px]"><canvas id="chart-spend"></canvas></div>
+      </section>
+
+      <section class="card p-5 lg:col-span-2">
+        <h2 class="card-title">Best-performing content</h2>
+        <p class="card-sub mb-3">Top posts by engagement rate in this range (posts with at least 1,000 reach).</p>
+        <div class="relative h-[290px]"><canvas id="chart-top"></canvas></div>
+      </section>
+      <section class="card p-0">
+        <div class="border-b border-line px-5 py-4">
+          <h2 class="card-title">Notable changes</h2>
+          <p class="card-sub">Compared with the previous period and the last 7 days.</p>
+        </div>
+        <ul id="changes" class="divide-y divide-line"></ul>
+      </section>
+
+      <section class="card p-5 lg:col-span-2">
+        <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 class="card-title">Audience engagement by posting time</h2>
+            <p id="heat-sub" class="card-sub"></p>
+          </div>
+          <div class="flex items-center gap-1.5 text-[12px] text-mute"><span>Lower</span>
+            <span class="h-2 w-24 rounded-full" style="background:linear-gradient(90deg,rgba(16,163,127,.12),rgba(16,163,127,.85))"></span><span>Higher</span></div>
+        </div>
+        <div id="heatmap"></div>
+      </section>
+      <section class="card p-0">
+        <div class="border-b border-line px-5 py-4">
+          <h2 class="card-title">Recent activity</h2>
+          <p class="card-sub">Latest posts, drafts and campaign events.</p>
+        </div>
+        <ul id="activity" class="divide-y divide-line"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script id="dashboard-data" type="application/json">{{ payload|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+{% endblock %}
